@@ -1,0 +1,6 @@
+# Magic Mouse 2 (Bluetooth 004C:0269): raw touch reports for active session.
+SUBSYSTEM=="hidraw", KERNELS=="0005:004C:0269.*", MODE="0660", TAG+="uaccess"
+
+# The service creates deliberately limited scroll and pinch devices via uinput.
+# uinput can synthesize input, so grant it only to the active local session.
+KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", TAG+="uaccess", OPTIONS+="static_node=uinput"
