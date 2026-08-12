@@ -2,7 +2,7 @@
 Description=Magic Mouse 2 Wayland Gestures
 Documentation=https://github.com/Salacfrantisek/magic-mouse-wayland-gestures
 After=graphical-session.target magic-mouse-wayland-gestures-ydotool.service
-Requires=magic-mouse-wayland-gestures-ydotool.service
+Wants=magic-mouse-wayland-gestures-ydotool.service
 
 [Service]
 Type=simple

@@ -319,3 +319,45 @@ def test_v31_key_sender_catches_process_failures_but_not_programming_errors():
     with patch.object(gestures.subprocess, "run", side_effect=ValueError("bug")):
         with pytest.raises(ValueError, match="bug"):
             gestures.send_key(gestures.KEY_LEFT)
+
+
+def test_v33_uinput_error_is_wrapped_for_boot_retry():
+    def fail_factory(**_kwargs):
+        raise gestures.UInputError("ACL not ready")
+
+    with pytest.raises(RuntimeError, match="cannot create scroll-only uinput device"):
+        gestures.ScrollEmitter(device_factory=fail_factory)
+
+
+def test_v33_boot_acl_retry_closes_partial_device_and_uses_bounded_backoff():
+    failed_scrolls = [Mock() for _ in range(4)]
+    successful_scroll = Mock()
+    pinch = Mock()
+    scroll_factory = Mock(side_effect=[*failed_scrolls, successful_scroll])
+    pinch_factory = Mock(
+        side_effect=[
+            RuntimeError("ACL not ready"),
+            RuntimeError("ACL not ready"),
+            RuntimeError("ACL not ready"),
+            RuntimeError("ACL not ready"),
+            pinch,
+        ]
+    )
+    sleep = Mock()
+
+    result = gestures.wait_for_virtual_outputs(
+        scroll_factory=scroll_factory,
+        pinch_factory=pinch_factory,
+        sleep=sleep,
+    )
+
+    assert result == (successful_scroll, pinch)
+    for failed_scroll in failed_scrolls:
+        failed_scroll.close.assert_called_once_with()
+    successful_scroll.close.assert_not_called()
+    assert [call.args[0] for call in sleep.call_args_list] == [
+        1.0,
+        2.0,
+        4.0,
+        gestures.UINPUT_RETRY_DELAY_MAX,
+    ]

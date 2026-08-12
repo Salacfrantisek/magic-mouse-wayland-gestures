@@ -9,3 +9,4 @@
 - Add isolated uinput capability boundaries and regression tests.
 - Add transactional installation, least-privilege udev rules, safe uninstall,
   service hardening, and explicit upstream provenance.
+- Tolerate delayed boot-time uinput ACLs without traceback or service restart.

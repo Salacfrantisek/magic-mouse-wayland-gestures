@@ -1,6 +1,7 @@
 [Unit]
 Description=Keyboard-only ydotoold for Magic Mouse Wayland Gestures
 PartOf=magic-mouse-wayland-gestures.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

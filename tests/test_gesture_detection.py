@@ -152,10 +152,11 @@ def test_v29_navigation_uses_a_dedicated_keyboard_only_ydotool_socket():
         repo_root / "systemd" / "magic-mouse-wayland-gestures-ydotool.service"
     ).read_text(encoding="utf-8")
 
-    assert "Requires=magic-mouse-wayland-gestures-ydotool.service" in main_service
+    assert "Wants=magic-mouse-wayland-gestures-ydotool.service" in main_service
     assert "Environment=YDOTOOL_SOCKET=%t/magic-mouse-wayland-gestures.sock" in main_service
     assert "--mouse-off" in ydotool_service
     assert "--socket-path=%t/magic-mouse-wayland-gestures.sock" in ydotool_service
+    assert "StartLimitIntervalSec=0" in ydotool_service
     assert "ydotool.service.d" not in main_service + ydotool_service
 
 

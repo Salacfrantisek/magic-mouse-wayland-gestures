@@ -100,6 +100,11 @@ The installer is fail-safe around scroll ownership:
 6. disables kernel scroll only after preflight succeeds;
 7. restores native live and persistent scroll settings if a later step fails.
 
+At login, logind may grant `/dev/uinput` access a few seconds after the user
+manager starts. The service waits with bounded backoff instead of crashing or
+printing a traceback; the dedicated ydotoold also retries without a systemd
+start-rate limit.
+
 If the paired device name does not contain `Magic Mouse`, automatic Bluetooth
 reprobe is skipped. Power-cycle the mouse once after installation; the script
 never falls back to disconnecting an arbitrary mouse.

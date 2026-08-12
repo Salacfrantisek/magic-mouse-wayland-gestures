@@ -22,10 +22,12 @@ from typing import Dict, List, Optional, Tuple
 
 try:
     from evdev import AbsInfo, UInput, ecodes
+    from evdev.uinput import UInputError
 except ImportError:  # Reported clearly by ScrollEmitter when used.
     AbsInfo = None
     UInput = None
     ecodes = None
+    UInputError = OSError
 
 __version__ = "0.1.0"
 
@@ -49,6 +51,7 @@ RECONNECT_DELAY_INITIAL = 1.0   # Initial delay before reconnect attempt
 RECONNECT_DELAY_MAX = 30.0      # Maximum delay between attempts
 RECONNECT_DELAY_MULTIPLIER = 2  # Exponential backoff multiplier
 ERROR_THRESHOLD = 10            # Consecutive errors before reconnect
+UINPUT_RETRY_DELAY_MAX = 5.0
 
 # Kernel hid-magicmouse-compatible high-resolution wheel units.
 SCROLL_HR_STEPS = 10
@@ -487,7 +490,7 @@ class ScrollEmitter:
                 bustype=ecodes.BUS_VIRTUAL,
                 max_effects=0,
             )
-        except (OSError, PermissionError) as error:
+        except (OSError, UInputError) as error:
             raise RuntimeError(f"cannot create scroll-only uinput device: {error}") from error
 
     def emit(self, delta: ScrollDelta) -> None:
@@ -569,7 +572,7 @@ class PinchEmitter:
                 input_props=[ecodes.INPUT_PROP_POINTER],
                 max_effects=0,
             )
-        except (OSError, PermissionError) as error:
+        except (OSError, UInputError) as error:
             raise RuntimeError(f"cannot create pinch-only uinput device: {error}") from error
         self.active = False
         self._next_tracking_id = 1
@@ -978,6 +981,34 @@ def check_uinput(
         return False
 
 
+def wait_for_virtual_outputs(
+    scroll_factory=ScrollEmitter,
+    pinch_factory=PinchEmitter,
+    sleep=time.sleep,
+) -> Tuple[ScrollEmitter, PinchEmitter]:
+    """Wait for boot-time uinput ACLs without crashing the user service."""
+    retry_delay = RECONNECT_DELAY_INITIAL
+    while True:
+        scroll_emitter = None
+        try:
+            scroll_emitter = scroll_factory()
+            pinch_emitter = pinch_factory()
+            return scroll_emitter, pinch_emitter
+        except RuntimeError as error:
+            if scroll_emitter is not None:
+                scroll_emitter.close()
+            print(
+                f"Virtual input not ready: {error}; retrying in "
+                f"{retry_delay:.0f}s",
+                file=sys.stderr,
+            )
+            sleep(retry_delay)
+            retry_delay = min(
+                retry_delay * RECONNECT_DELAY_MULTIPLIER,
+                UINPUT_RETRY_DELAY_MAX,
+            )
+
+
 def main() -> int:
     """Main entry point with automatic reconnection."""
     if sys.argv[1:] == ['--check-uinput']:
@@ -1003,15 +1034,10 @@ def main() -> int:
     gesture_arbiter = TwoFingerGestureArbiter()
     reconnect_delay = RECONNECT_DELAY_INITIAL
 
-    scroll_emitter = None
-    try:
-        scroll_emitter = ScrollEmitter()
-        pinch_emitter = PinchEmitter()
-    except RuntimeError as error:
-        if scroll_emitter is not None:
-            scroll_emitter.close()
-        print(f"Virtual input initialization failed: {error}", file=sys.stderr)
+    if UInput is None or ecodes is None:
+        print("python3-evdev is required for virtual input output", file=sys.stderr)
         return 1
+    scroll_emitter, pinch_emitter = wait_for_virtual_outputs()
 
     try:
         while True:

@@ -65,6 +65,7 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 - V30: Public metadata consistently names `magic-mouse-wayland-gestures`, targets `Salacfrantisek`, preserves Breno Perucchi's MIT copyright, credits inspiration without claiming copied GPL/kernel code, documents the tested hardware boundary, and has no PyPI publish path until system assets can be packaged correctly.
 - V31: Runtime has one state reset per transition, catches only actionable key-send failures, never advises running the service as root, and keeps uinput tracking IDs within their advertised range.
 - V32: User service applies safe process/filesystem hardening without hiding `/dev/hidraw*`, `/dev/uinput`, the ydotool socket, or required system libraries.
+- V33: Delayed boot-time `uaccess` ACL on `/dev/uinput` never produces an uncaught `UInputError` or main-service restart. Runtime retries virtual-output initialization with bounded backoff; the optional project ydotoold retries without systemd rate limiting.
 
 §T
 
@@ -73,6 +74,7 @@ T1|x|Implement, test, document, preflight, and deploy minimal scroll-only sticky
 T2|x|Enable, test, document, and deploy kernel-native center-zone middle click|V1,V11,V13,V17,V18,V24,I.modprobe/99-magic-mouse-wayland-gestures.conf,I.tests
 T3|x|Implement, test, document, preflight, deploy, and package native Wayland pinch without swipe/scroll regressions|V1,V2,V3,V9,V10,V11,V12,V13,V14,V18,V19,V20,V21,V22,V23,V24,I.magic_mouse_gestures.py,I./dev/uinput,I.python3-evdev,I.systemd/magic-mouse-wayland-gestures.service,I.tests
 T4|x|Prepare clean public derivative with least-privilege transactional install, accurate provenance, safe uninstall, CI, and publication metadata|V1,V11,V13,V14,V17,V18,V19,V23,V24,V25,V26,V27,V28,V29,V30,V31,V32,I.magic_mouse_gestures.py,I.modprobe/99-magic-mouse-wayland-gestures.conf,I.udev/99-magic-mouse-wayland-gestures.rules,I.systemd/magic-mouse-wayland-gestures.service,I.tests,I.THIRD_PARTY_NOTICES.md,I.LICENSE,I.README.md,I.github/workflows/ci.yml
+T5|x|Handle delayed boot-time uinput ACL without traceback or service restart|V11,V23,V24,V29,V31,V32,V33,I.magic_mouse_gestures.py,I.systemd/magic-mouse-wayland-gestures.service,I.systemd/magic-mouse-wayland-gestures-ydotool.service,I.tests
 
 §B
 
@@ -92,3 +94,4 @@ B12|2026-08-12|static tests expected expanded shell literals instead of project-
 B13|2026-08-12|publication lint found unsorted imports and ambiguous sudo redirection|V30
 B14|2026-08-12|daemon preflight wrongly required socket removal though ydotoold securely replaces its stale 0600 socket|V29
 B15|2026-08-12|release secret scan matched forbidden strings inside negative test assertions|V30
+B16|2026-08-12|user unit started before logind granted uinput ACL and uncaught UInputError caused restart|V33

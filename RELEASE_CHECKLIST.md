@@ -10,6 +10,7 @@
 - [x] udev rule verification
 - [x] unprivileged scroll/pinch uinput preflight
 - [x] dedicated keyboard-only ydotoold starts twice on its private `0600` socket
+- [x] delayed boot-time uinput ACL is handled by bounded runtime retry
 - [x] no personal paths, Bluetooth addresses, credentials, or world-writable input rules
 - [x] retained MIT copyright and explicit third-party provenance
 
