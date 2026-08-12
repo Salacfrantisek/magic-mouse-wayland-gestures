@@ -661,7 +661,7 @@ class GestureEmitter:
             wrap_delta(touch.y, start_positions[touch.id][1]) for touch in touches
         ) / 3.0
         virtual_x = round(delta_x / MOUSE_RES_X * VIRTUAL_TOUCHPAD_RESOLUTION)
-        virtual_y = round(delta_y / MOUSE_RES_Y * VIRTUAL_TOUCHPAD_RESOLUTION)
+        virtual_y = -round(delta_y / MOUSE_RES_Y * VIRTUAL_TOUCHPAD_RESOLUTION)
         min_x = -min(x for x, _y in SWIPE_BASE_CONTACTS)
         max_x = PINCH_COORD_MAX - max(x for x, _y in SWIPE_BASE_CONTACTS)
         min_y = -min(y for _x, y in SWIPE_BASE_CONTACTS)

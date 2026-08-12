@@ -25,20 +25,52 @@ Pinch and navigation share a locked gesture arbiter. Once a two-finger contact
 sequence becomes a pinch it cannot navigate, and once it becomes a swipe it
 cannot turn into a pinch until both contacts lift.
 
-## Tested platform
+## Exact tested setup
 
-The current behavior has been physically tested on:
+This is the configuration physically tested on 12 August 2026:
 
-- Apple Magic Mouse 2 over Bluetooth (`0005:004C:0269`)
-- Ubuntu 26.04
-- Linux `7.0.0-28-generic`, using the in-tree `hid_magicmouse` driver
-- GNOME Wayland
-- libinput 1.31.1
-- Python 3.14 with `python3-evdev`
+| Component | Tested value |
+|---|---|
+| Mouse | Apple Magic Mouse 2, Bluetooth/Lightning generation |
+| HID identity | bus `0005`, vendor `004C`, product `0269`, device version `0192` |
+| Connection | Bluetooth |
+| Operating system | Ubuntu 26.04 LTS |
+| Desktop | GNOME Shell 50.1 |
+| Session | Wayland |
+| Kernel | `7.0.0-28-generic` with the in-tree `hid_magicmouse` driver |
+| libinput | 1.31.1 |
+| Python | 3.14.4 with `python3-evdev` |
+
+The tested mouse is product `0269`. It is not the newer USB-C revision, which
+uses a different product ID. Color and printed model number do not affect the
+HID match and were not used to identify the device.
+
+The physical test covered pointer and left/right click, one-finger scrolling,
+center-zone middle click, two-finger Back/Forward, pinch zoom, GNOME workspace
+swipes, and the three-finger upward Overview gesture.
 
 Unit tests cover the gesture state machines and virtual-device capability
 boundaries. Other distributions, desktop environments, kernel versions, and
 newer USB-C Magic Mouse revisions are not yet claimed as supported.
+
+## What gets changed
+
+The mouse firmware is not modified. No out-of-tree or DKMS mouse driver is
+installed. The project changes only these host-side pieces:
+
+| Layer | Change |
+|---|---|
+| Kernel module settings | `emulate_3button=1`, `emulate_scroll_wheel=0`, `scroll_acceleration=0`, `scroll_speed=22` |
+| Physical device | Still handled by in-tree `hid_magicmouse` for pointer movement and all physical buttons |
+| Touch reports | Read from the exact `004C:0269` hidraw device without grabbing it |
+| One finger | Emitted through a scroll-only uinput device |
+| Two-finger pinch | Emitted as two contacts on a gesture-only virtual touchpad |
+| Three-finger swipe | Emitted as three translating contacts; GNOME decides workspace or Overview behavior |
+| Back/Forward | Emitted as keyboard-only `Alt+Left` / `Alt+Right` through a private `ydotoold --mouse-off` socket |
+
+The two virtual devices deliberately have no mouse buttons or pointer-motion
+axes. If the userspace service stops, the physical pointer and clicks remain
+kernel-controlled; only the added scrolling and gestures disappear.
 
 ## Why this design
 

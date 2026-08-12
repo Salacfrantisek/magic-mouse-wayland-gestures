@@ -41,7 +41,7 @@ def test_v36_gesture_device_has_three_slots_without_pointer_capabilities():
     assert slot.max == 2
 
 
-def test_v34_three_contacts_translate_equally_with_physical_centroid():
+def test_v34_v38_three_contacts_translate_equally_with_touchpad_orientation():
     fake_device = Mock()
     emitter = gestures.GestureEmitter(device_factory=Mock(return_value=fake_device))
 
@@ -66,7 +66,7 @@ def test_v34_three_contacts_translate_equally_with_physical_centroid():
     ]
 
     assert x_values[3:] == [value + 450 for value in x_values[:3]]
-    assert y_values[3:] == [value + 450 for value in y_values[:3]]
+    assert y_values[3:] == [value - 450 for value in y_values[:3]]
 
 
 def test_v35_id_change_ends_output_and_locks_until_every_finger_lifts():

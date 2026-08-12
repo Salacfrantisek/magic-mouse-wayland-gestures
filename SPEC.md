@@ -71,6 +71,7 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 - V35: A three-finger sequence owns all remaining contacts until every finger lifts. Dropping to two fingers cannot start pinch, Back/Forward, scroll, or another virtual gesture mid-sequence.
 - V36: The gesture touchpad advertises three MT slots and `BTN_TOOL_TRIPLETAP`, but no relative axes or mouse buttons. Existing two-finger pinch lifecycle and isolation remain unchanged.
 - V37: Automated tests cover three-finger capability isolation, equal contact translation, stable-ID reset, and sequence locking. Live merge gate checks GNOME workspace left/right and overview up on the tested Magic Mouse 2.
+- V38: Three-finger virtual Y translation is inverted against Magic Mouse raw Y so physical up matches the tested GNOME touchpad up gesture. This conversion changes neither V16 one-finger scroll signs nor V10 two-finger Back/Forward mapping; horizontal three-finger direction is unchanged.
 
 §T
 
@@ -80,7 +81,7 @@ T2|x|Enable, test, document, and deploy kernel-native center-zone middle click|V
 T3|x|Implement, test, document, preflight, deploy, and package native Wayland pinch without swipe/scroll regressions|V1,V2,V3,V9,V10,V11,V12,V13,V14,V18,V19,V20,V21,V22,V23,V24,I.magic_mouse_gestures.py,I./dev/uinput,I.python3-evdev,I.systemd/magic-mouse-wayland-gestures.service,I.tests
 T4|x|Prepare clean public derivative with least-privilege transactional install, accurate provenance, safe uninstall, CI, and publication metadata|V1,V11,V13,V14,V17,V18,V19,V23,V24,V25,V26,V27,V28,V29,V30,V31,V32,I.magic_mouse_gestures.py,I.modprobe/99-magic-mouse-wayland-gestures.conf,I.udev/99-magic-mouse-wayland-gestures.rules,I.systemd/magic-mouse-wayland-gestures.service,I.tests,I.THIRD_PARTY_NOTICES.md,I.LICENSE,I.README.md,I.github/workflows/ci.yml
 T5|x|Handle delayed boot-time uinput ACL without traceback or service restart|V11,V23,V24,V29,V31,V32,V33,I.magic_mouse_gestures.py,I.systemd/magic-mouse-wayland-gestures.service,I.systemd/magic-mouse-wayland-gestures-ydotool.service,I.tests
-T6|~|Add native three-finger GNOME workspace and overview gestures on Magic Mouse 2|V1,V3,V9,V10,V18,V22,V23,V24,V31,V34,V35,V36,V37,I.magic_mouse_gestures.py,I./dev/uinput,I.python3-evdev,I.tests,I.README.md
+T6|x|Add native three-finger GNOME workspace and overview gestures on Magic Mouse 2|V1,V3,V9,V10,V18,V22,V23,V24,V31,V34,V35,V36,V37,V38,I.magic_mouse_gestures.py,I./dev/uinput,I.python3-evdev,I.tests,I.README.md
 
 §B
 
@@ -101,3 +102,4 @@ B13|2026-08-12|publication lint found unsorted imports and ambiguous sudo redire
 B14|2026-08-12|daemon preflight wrongly required socket removal though ydotoold securely replaces its stale 0600 socket|V29
 B15|2026-08-12|release secret scan matched forbidden strings inside negative test assertions|V30
 B16|2026-08-12|user unit started before logind granted uinput ACL and uncaught UInputError caused restart|V33
+B17|2026-08-12|three-finger virtual touchpad copied raw Magic Mouse Y directly, making GNOME vertical gestures physically inverted|V38
