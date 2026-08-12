@@ -252,7 +252,7 @@ bash -n install.sh uninstall.sh
 ```
 
 The architecture invariants and regression history are documented in
-[`SPEC.md`](SPEC.md). The remaining clean-host checks before `v0.1.0` are in
+[`SPEC.md`](SPEC.md). Further clean-host portability checks are tracked in
 [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md).
 
 ## Credits and provenance

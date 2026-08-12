@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - unreleased
+## 0.1.0 - 2026-08-12
 
 - Preserve kernel-native pointer movement and physical buttons.
 - Add one-finger high-resolution scroll with sticky axis locking.
