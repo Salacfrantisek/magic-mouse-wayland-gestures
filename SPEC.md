@@ -1,14 +1,15 @@
 §G
 
-Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle click, userspace sticky scroll, Back/Forward, and native pinch zoom.
+Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle click, userspace sticky scroll, Back/Forward, native pinch zoom, and native GNOME three-finger navigation.
 
 §C
 
 - One existing Python service/process only.
 - Physical pointer/buttons and middle click stay kernel-native.
 - No evdev grab, pointer/button re-emission, scroll subprocess, polling loop, or ydotool scroll.
-- Existing raw HID reader supplies touch samples; separate scroll-only and pinch-only uinput devices supply outputs.
+- Existing raw HID reader supplies touch samples; separate scroll-only and gesture-only uinput devices supply outputs.
 - One finger scrolls. Two fingers lock to either native pinch or browser Back/Forward for the full contact sequence.
+- Exactly three fingers produce a native libinput swipe; GNOME owns workspace and overview behavior.
 - Defaults: speed 22, dominance ratio 1.5, unlock after 250 ms inactivity, acceleration enabled with about 2.3x maximum gain.
 - Kernel native scroll disabled only after both virtual output paths pass preflight.
 - Failure may remove scroll temporarily; must never remove pointer or clicks. Rollback restores kernel scroll.
@@ -20,7 +21,7 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 
 - `magic_mouse_gestures.py`: hidraw input, gesture detection, axis-lock state, scroll emission.
 - `/dev/uinput` `Magic Mouse Scroll`: virtual device advertising only `REL_WHEEL`, `REL_HWHEEL`, `REL_WHEEL_HI_RES`, `REL_HWHEEL_HI_RES`.
-- `/dev/uinput` `Magic Mouse Pinch`: separate type-B multitouch touchpad advertising touch/tool keys and absolute MT slots only; no relative axes or mouse buttons.
+- `/dev/uinput` `Magic Mouse Gesture Touchpad`: separate type-B multitouch touchpad advertising touch/tool keys and three absolute MT slots only; no relative axes or mouse buttons.
 - `python3-evdev`: uinput API; packaged dependency.
 - `SCROLL_SPEED=22`, `SCROLL_LOCK_RATIO=1.5`, `SCROLL_LOCK_TIMEOUT=0.25`, `SCROLL_ACCEL_MAX=2.3`, `PINCH_THRESHOLD_MM=2.0`, `PINCH_DOMINANCE=1.3`: optional environment overrides.
 - `modprobe/99-magic-mouse-wayland-gestures.conf`: project-owned config with `scroll_acceleration=0`, `scroll_speed=22`, `emulate_scroll_wheel=0`, `emulate_3button=1`; userspace owns scroll, kernel owns clicks.
@@ -51,7 +52,7 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 - V16: Userspace wheel signs match `hid-magicmouse`: positive parsed X emits positive horizontal wheel; positive parsed Y emits positive vertical wheel. Parser/output must not apply kernel Y negation twice.
 - V17: Installer persists `emulate_3button=1`, applies it before Magic Mouse reprobe, and verifies the recreated physical input device advertises `BTN_MIDDLE`; no out-of-tree/DKMS mouse driver is installed.
 - V18: Middle click is the kernel driver's center-zone physical click. Userspace never emits, grabs, or re-emits `BTN_LEFT`, `BTN_RIGHT`, or `BTN_MIDDLE`.
-- V19: `Magic Mouse Pinch` is a second uinput device with type-B MT slots, `BTN_TOUCH`, finger-count tool keys, and `INPUT_PROP_POINTER`; it has no `EV_REL`, `BTN_LEFT`, `BTN_RIGHT`, or `BTN_MIDDLE`, and uses `max_effects=0`.
+- V19: `Magic Mouse Gesture Touchpad` is a second uinput device with type-B MT slots, `BTN_TOUCH`, finger-count tool keys, and `INPUT_PROP_POINTER`; it has no `EV_REL`, `BTN_LEFT`, `BTN_RIGHT`, or `BTN_MIDDLE`, and uses `max_effects=0`.
 - V20: Pinch may start only with exactly two stable touch IDs when finger-distance change is at least `PINCH_THRESHOLD_MM` and at least `PINCH_DOMINANCE` times centroid travel. Zero, one, or three-plus touches never emit pinch.
 - V21: Pinch output starts two tracking slots at scale 1, updates symmetric positions around a fixed center using absolute scale, and releases both slots on lift, ID change, reconnect, or shutdown.
 - V22: Pinch and Back/Forward are mutually exclusive for each two-finger contact sequence. Pinch suppresses ydotool navigation; recognized swipe locks out pinch until all contacts lift.
@@ -66,6 +67,10 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 - V31: Runtime has one state reset per transition, catches only actionable key-send failures, never advises running the service as root, and keeps uinput tracking IDs within their advertised range.
 - V32: User service applies safe process/filesystem hardening without hiding `/dev/hidraw*`, `/dev/uinput`, the ydotool socket, or required system libraries.
 - V33: Delayed boot-time `uaccess` ACL on `/dev/uinput` never produces an uncaught `UInputError` or main-service restart. Runtime retries virtual-output initialization with bounded backoff; the optional project ydotoold retries without systemd rate limiting.
+- V34: Exactly three stable touch IDs start one virtual three-contact sequence. All contacts keep fixed separation and translate by the physical centroid; libinput and GNOME classify direction and action.
+- V35: A three-finger sequence owns all remaining contacts until every finger lifts. Dropping to two fingers cannot start pinch, Back/Forward, scroll, or another virtual gesture mid-sequence.
+- V36: The gesture touchpad advertises three MT slots and `BTN_TOOL_TRIPLETAP`, but no relative axes or mouse buttons. Existing two-finger pinch lifecycle and isolation remain unchanged.
+- V37: Automated tests cover three-finger capability isolation, equal contact translation, stable-ID reset, and sequence locking. Live merge gate checks GNOME workspace left/right and overview up on the tested Magic Mouse 2.
 
 §T
 
@@ -75,6 +80,7 @@ T2|x|Enable, test, document, and deploy kernel-native center-zone middle click|V
 T3|x|Implement, test, document, preflight, deploy, and package native Wayland pinch without swipe/scroll regressions|V1,V2,V3,V9,V10,V11,V12,V13,V14,V18,V19,V20,V21,V22,V23,V24,I.magic_mouse_gestures.py,I./dev/uinput,I.python3-evdev,I.systemd/magic-mouse-wayland-gestures.service,I.tests
 T4|x|Prepare clean public derivative with least-privilege transactional install, accurate provenance, safe uninstall, CI, and publication metadata|V1,V11,V13,V14,V17,V18,V19,V23,V24,V25,V26,V27,V28,V29,V30,V31,V32,I.magic_mouse_gestures.py,I.modprobe/99-magic-mouse-wayland-gestures.conf,I.udev/99-magic-mouse-wayland-gestures.rules,I.systemd/magic-mouse-wayland-gestures.service,I.tests,I.THIRD_PARTY_NOTICES.md,I.LICENSE,I.README.md,I.github/workflows/ci.yml
 T5|x|Handle delayed boot-time uinput ACL without traceback or service restart|V11,V23,V24,V29,V31,V32,V33,I.magic_mouse_gestures.py,I.systemd/magic-mouse-wayland-gestures.service,I.systemd/magic-mouse-wayland-gestures-ydotool.service,I.tests
+T6|~|Add native three-finger GNOME workspace and overview gestures on Magic Mouse 2|V1,V3,V9,V10,V18,V22,V23,V24,V31,V34,V35,V36,V37,I.magic_mouse_gestures.py,I./dev/uinput,I.python3-evdev,I.tests,I.README.md
 
 §B
 

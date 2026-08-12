@@ -19,13 +19,14 @@ def make_touch(touch_id: int, x: int, y: int = 1000) -> gestures.Touch:
 
 
 def test_v19_pinch_device_has_only_touchpad_gesture_capabilities():
-    capabilities = gestures.pinch_capabilities()
+    capabilities = gestures.gesture_capabilities()
 
     assert gestures.ecodes.EV_REL not in capabilities
     assert set(capabilities[gestures.ecodes.EV_KEY]) == {
         gestures.ecodes.BTN_TOUCH,
         gestures.ecodes.BTN_TOOL_FINGER,
         gestures.ecodes.BTN_TOOL_DOUBLETAP,
+        gestures.ecodes.BTN_TOOL_TRIPLETAP,
     }
     assert gestures.ecodes.BTN_LEFT not in capabilities[gestures.ecodes.EV_KEY]
     assert gestures.ecodes.BTN_RIGHT not in capabilities[gestures.ecodes.EV_KEY]
@@ -46,11 +47,11 @@ def test_v19_pinch_emitter_is_separate_pointer_property_device():
     fake_device = Mock()
     factory = Mock(return_value=fake_device)
 
-    gestures.PinchEmitter(device_factory=factory)
+    gestures.GestureEmitter(device_factory=factory)
 
     factory.assert_called_once_with(
-        events=gestures.pinch_capabilities(),
-        name="Magic Mouse Pinch Touchpad",
+        events=gestures.gesture_capabilities(),
+        name="Magic Mouse Gesture Touchpad",
         bustype=gestures.ecodes.BUS_VIRTUAL,
         vendor=0x0001,
         product=0x0002,
@@ -64,8 +65,8 @@ def test_v19_pinch_uinput_initialization_failure_is_clear():
     def fail_factory(**_kwargs):
         raise PermissionError("denied")
 
-    with pytest.raises(RuntimeError, match="cannot create pinch-only uinput device"):
-        gestures.PinchEmitter(device_factory=fail_factory)
+    with pytest.raises(RuntimeError, match="cannot create gesture-only uinput device"):
+        gestures.GestureEmitter(device_factory=fail_factory)
 
 
 def test_v20_symmetric_distance_change_starts_outward_pinch():
@@ -112,7 +113,7 @@ def test_v20_non_two_finger_sequences_never_begin_pinch():
 
 def test_v21_pinch_emitter_starts_updates_and_releases_both_slots():
     fake_device = Mock()
-    emitter = gestures.PinchEmitter(device_factory=Mock(return_value=fake_device))
+    emitter = gestures.GestureEmitter(device_factory=Mock(return_value=fake_device))
 
     emitter.begin(1.5)
     emitter.end()
@@ -142,7 +143,7 @@ def test_v21_pinch_emitter_starts_updates_and_releases_both_slots():
 
 def test_v31_tracking_ids_wrap_within_advertised_range():
     fake_device = Mock()
-    emitter = gestures.PinchEmitter(device_factory=Mock(return_value=fake_device))
+    emitter = gestures.GestureEmitter(device_factory=Mock(return_value=fake_device))
     emitter._next_tracking_id = gestures.PINCH_TRACKING_ID_MAX - 1
 
     emitter.begin(1.1)
@@ -283,7 +284,7 @@ def test_v23_preflight_creates_both_devices_without_capability_reads():
 
     assert gestures.check_uinput(
         emitter_factory=Mock(return_value=scroll),
-        pinch_emitter_factory=Mock(return_value=pinch),
+        gesture_emitter_factory=Mock(return_value=pinch),
     )
     scroll.device.capabilities.assert_not_called()
     pinch.device.capabilities.assert_not_called()
@@ -334,7 +335,7 @@ def test_v33_boot_acl_retry_closes_partial_device_and_uses_bounded_backoff():
     successful_scroll = Mock()
     pinch = Mock()
     scroll_factory = Mock(side_effect=[*failed_scrolls, successful_scroll])
-    pinch_factory = Mock(
+    gesture_factory = Mock(
         side_effect=[
             RuntimeError("ACL not ready"),
             RuntimeError("ACL not ready"),
@@ -347,7 +348,7 @@ def test_v33_boot_acl_retry_closes_partial_device_and_uses_bounded_backoff():
 
     result = gestures.wait_for_virtual_outputs(
         scroll_factory=scroll_factory,
-        pinch_factory=pinch_factory,
+        gesture_factory=gesture_factory,
         sleep=sleep,
     )
 

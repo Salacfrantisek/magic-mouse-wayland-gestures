@@ -2,9 +2,9 @@
 """
 Magic Mouse 2 Gesture Driver for Linux
 
-Adds scroll, navigation, and native pinch gestures for Apple Magic Mouse 2
-on Linux/Wayland while leaving pointer movement and physical buttons in the
-kernel driver.
+Adds scroll, navigation, native pinch, and native three-finger swipe gestures
+for Apple Magic Mouse 2 on Linux/Wayland while leaving pointer movement and
+physical buttons in the kernel driver.
 
 Derived from Breno Perucchi's magic-mouse-gestures project.
 See THIRD_PARTY_NOTICES.md. License: MIT.
@@ -73,6 +73,12 @@ PINCH_BASE_HALF_SPAN = 700
 PINCH_MIN_SCALE = 0.25
 PINCH_MAX_SCALE = 2.5
 PINCH_TRACKING_ID_MAX = 65535
+SWIPE_BASE_CONTACTS = (
+    (PINCH_COORD_CENTER - 700, PINCH_COORD_CENTER),
+    (PINCH_COORD_CENTER, PINCH_COORD_CENTER),
+    (PINCH_COORD_CENTER + 700, PINCH_COORD_CENTER),
+)
+VIRTUAL_TOUCHPAD_RESOLUTION = 45.0
 
 
 def get_env_float(name: str, default: float) -> float:
@@ -517,8 +523,8 @@ class ScrollEmitter:
         self.close()
 
 
-def pinch_capabilities() -> Dict[int, List]:
-    """Capabilities for a two-slot gesture-only virtual touchpad."""
+def gesture_capabilities() -> Dict[int, List]:
+    """Capabilities for the isolated pinch and three-finger touchpad."""
     if AbsInfo is None or ecodes is None:
         raise RuntimeError("python3-evdev is required for native pinch output")
 
@@ -535,13 +541,14 @@ def pinch_capabilities() -> Dict[int, List]:
             ecodes.BTN_TOUCH,
             ecodes.BTN_TOOL_FINGER,
             ecodes.BTN_TOOL_DOUBLETAP,
+            ecodes.BTN_TOOL_TRIPLETAP,
         ],
         ecodes.EV_ABS: [
             (ecodes.ABS_X, position),
             (ecodes.ABS_Y, position),
             (
                 ecodes.ABS_MT_SLOT,
-                AbsInfo(value=0, min=0, max=1, fuzz=0, flat=0, resolution=0),
+                AbsInfo(value=0, min=0, max=2, fuzz=0, flat=0, resolution=0),
             ),
             (ecodes.ABS_MT_POSITION_X, position),
             (ecodes.ABS_MT_POSITION_Y, position),
@@ -553,8 +560,8 @@ def pinch_capabilities() -> Dict[int, List]:
     }
 
 
-class PinchEmitter:
-    """Two-contact type-B touchpad output; never emits a mouse button or REL axis."""
+class GestureEmitter:
+    """Gesture-only type-B touchpad; never emits a mouse button or REL axis."""
 
     def __init__(self, device_factory=None):
         if UInput is None or ecodes is None:
@@ -563,8 +570,8 @@ class PinchEmitter:
             device_factory = UInput
         try:
             self.device = device_factory(
-                events=pinch_capabilities(),
-                name="Magic Mouse Pinch Touchpad",
+                events=gesture_capabilities(),
+                name="Magic Mouse Gesture Touchpad",
                 bustype=ecodes.BUS_VIRTUAL,
                 vendor=0x0001,
                 product=0x0002,
@@ -573,9 +580,19 @@ class PinchEmitter:
                 max_effects=0,
             )
         except (OSError, UInputError) as error:
-            raise RuntimeError(f"cannot create pinch-only uinput device: {error}") from error
+            raise RuntimeError(f"cannot create gesture-only uinput device: {error}") from error
         self.active = False
+        self.three_finger_active = False
+        self._three_finger_sequence = False
+        self._swipe_touch_ids: Optional[Tuple[int, int, int]] = None
+        self._swipe_start_positions: Dict[int, Tuple[int, int]] = {}
         self._next_tracking_id = 1
+
+    def _advance_tracking_id(self, contact_count: int) -> None:
+        if self._next_tracking_id > PINCH_TRACKING_ID_MAX - contact_count:
+            self._next_tracking_id = 1
+        else:
+            self._next_tracking_id += contact_count
 
     @staticmethod
     def _coordinates(scale: float) -> Tuple[int, int]:
@@ -614,11 +631,7 @@ class PinchEmitter:
             self.end()
         self._write_positions(1.0, new_contacts=True)
         self.active = True
-        self._next_tracking_id = (
-            1
-            if self._next_tracking_id > PINCH_TRACKING_ID_MAX - 3
-            else self._next_tracking_id + 2
-        )
+        self._advance_tracking_id(2)
         self.update(scale)
 
     def update(self, scale: float) -> None:
@@ -636,8 +649,108 @@ class PinchEmitter:
         self.device.syn()
         self.active = False
 
-    def close(self) -> None:
+    @staticmethod
+    def _translated_swipe_contacts(
+        touches: List[Touch],
+        start_positions: Dict[int, Tuple[int, int]],
+    ) -> Tuple[Tuple[int, int], ...]:
+        delta_x = sum(
+            wrap_delta(touch.x, start_positions[touch.id][0]) for touch in touches
+        ) / 3.0
+        delta_y = sum(
+            wrap_delta(touch.y, start_positions[touch.id][1]) for touch in touches
+        ) / 3.0
+        virtual_x = round(delta_x / MOUSE_RES_X * VIRTUAL_TOUCHPAD_RESOLUTION)
+        virtual_y = round(delta_y / MOUSE_RES_Y * VIRTUAL_TOUCHPAD_RESOLUTION)
+        min_x = -min(x for x, _y in SWIPE_BASE_CONTACTS)
+        max_x = PINCH_COORD_MAX - max(x for x, _y in SWIPE_BASE_CONTACTS)
+        min_y = -min(y for _x, y in SWIPE_BASE_CONTACTS)
+        max_y = PINCH_COORD_MAX - max(y for _x, y in SWIPE_BASE_CONTACTS)
+        virtual_x = min(max_x, max(min_x, virtual_x))
+        virtual_y = min(max_y, max(min_y, virtual_y))
+        return tuple(
+            (base_x + virtual_x, base_y + virtual_y)
+            for base_x, base_y in SWIPE_BASE_CONTACTS
+        )
+
+    def _write_three_finger_positions(
+        self,
+        touches: List[Touch],
+        new_contacts: bool,
+    ) -> None:
+        touches = sorted(touches, key=lambda touch: touch.id)
+        positions = self._translated_swipe_contacts(
+            touches,
+            self._swipe_start_positions,
+        )
+        center_x = sum(x for x, _y in positions) // 3
+        center_y = sum(y for _x, y in positions) // 3
+        if new_contacts:
+            self.device.write(ecodes.EV_KEY, ecodes.BTN_TOUCH, 1)
+            self.device.write(ecodes.EV_KEY, ecodes.BTN_TOOL_TRIPLETAP, 1)
+        self.device.write(ecodes.EV_ABS, ecodes.ABS_X, center_x)
+        self.device.write(ecodes.EV_ABS, ecodes.ABS_Y, center_y)
+        for slot, (x_position, y_position) in enumerate(positions):
+            self.device.write(ecodes.EV_ABS, ecodes.ABS_MT_SLOT, slot)
+            if new_contacts:
+                self.device.write(
+                    ecodes.EV_ABS,
+                    ecodes.ABS_MT_TRACKING_ID,
+                    self._next_tracking_id + slot,
+                )
+            self.device.write(ecodes.EV_ABS, ecodes.ABS_MT_POSITION_X, x_position)
+            self.device.write(ecodes.EV_ABS, ecodes.ABS_MT_POSITION_Y, y_position)
+        self.device.syn()
+
+    def _begin_three_finger(self, touches: List[Touch]) -> None:
+        self._swipe_touch_ids = tuple(sorted(touch.id for touch in touches))
+        self._swipe_start_positions = {
+            touch.id: (touch.x, touch.y) for touch in touches
+        }
+        self._write_three_finger_positions(touches, new_contacts=True)
+        self.three_finger_active = True
+        self._advance_tracking_id(3)
+
+    def _end_three_finger(self) -> None:
+        if not self.three_finger_active:
+            return
+        for slot in (0, 1, 2):
+            self.device.write(ecodes.EV_ABS, ecodes.ABS_MT_SLOT, slot)
+            self.device.write(ecodes.EV_ABS, ecodes.ABS_MT_TRACKING_ID, -1)
+        self.device.write(ecodes.EV_KEY, ecodes.BTN_TOUCH, 0)
+        self.device.write(ecodes.EV_KEY, ecodes.BTN_TOOL_TRIPLETAP, 0)
+        self.device.syn()
+        self.three_finger_active = False
+        self._swipe_touch_ids = None
+        self._swipe_start_positions = {}
+
+    def update_three_finger(self, touches: List[Touch]) -> bool:
+        """Emit or retain ownership of one exactly-three-finger sequence."""
+        touch_ids = tuple(sorted(touch.id for touch in touches))
+        if self._three_finger_sequence:
+            if len(touches) == 3 and touch_ids == self._swipe_touch_ids:
+                self._write_three_finger_positions(touches, new_contacts=False)
+            else:
+                self._end_three_finger()
+                if not touches:
+                    self._three_finger_sequence = False
+            return True
+
+        if len(touches) != 3 or len(touch_ids) != 3:
+            return False
+
+        self._three_finger_sequence = True
+        self._begin_three_finger(touches)
+        return True
+
+    def reset(self) -> None:
+        """Release every virtual contact and unlock the physical sequence."""
         self.end()
+        self._end_three_finger()
+        self._three_finger_sequence = False
+
+    def close(self) -> None:
+        self.reset()
         self.device.close()
 
     def __enter__(self):
@@ -779,7 +892,7 @@ def process_touches(
     scroll_filter: ScrollAxisLock,
     scroll_emitter: ScrollEmitter,
     gesture_arbiter: TwoFingerGestureArbiter,
-    pinch_emitter: PinchEmitter,
+    gesture_emitter: GestureEmitter,
     key_sender=send_key,
 ) -> Optional[str]:
     """Route one HID sample to exactly one compatible gesture output path."""
@@ -788,12 +901,17 @@ def process_touches(
     if pinch.reset_swipe:
         clear_gesture_tracking(state)
     if pinch.phase == "end":
-        pinch_emitter.end()
-    elif pinch.phase == "begin":
+        gesture_emitter.end()
+
+    if gesture_emitter.update_three_finger(touches) is True:
         clear_gesture_tracking(state)
-        pinch_emitter.begin(pinch.scale)
+        return "three_finger_swipe" if len(touches) == 3 else None
+
+    if pinch.phase == "begin":
+        clear_gesture_tracking(state)
+        gesture_emitter.begin(pinch.scale)
     elif pinch.phase == "update":
-        pinch_emitter.update(pinch.scale)
+        gesture_emitter.update(pinch.scale)
 
     if gesture_arbiter.mode == "pinch":
         return None
@@ -917,7 +1035,7 @@ def run_device_loop(
     scroll_filter: ScrollAxisLock,
     scroll_emitter: ScrollEmitter,
     gesture_arbiter: TwoFingerGestureArbiter,
-    pinch_emitter: PinchEmitter,
+    gesture_emitter: GestureEmitter,
 ) -> bool:
     """
     Main device reading loop.
@@ -962,19 +1080,19 @@ def run_device_loop(
             scroll_filter,
             scroll_emitter,
             gesture_arbiter,
-            pinch_emitter,
+            gesture_emitter,
         )
 
 
 def check_uinput(
     emitter_factory=ScrollEmitter,
-    pinch_emitter_factory=PinchEmitter,
+    gesture_emitter_factory=GestureEmitter,
 ) -> bool:
     """Create and close both write-only virtual devices used at runtime."""
     try:
-        with emitter_factory(), pinch_emitter_factory():
+        with emitter_factory(), gesture_emitter_factory():
             pass
-        print("uinput preflight OK: isolated scroll and pinch devices")
+        print("uinput preflight OK: isolated scroll and gesture devices")
         return True
     except RuntimeError as error:
         print(f"uinput preflight failed: {error}", file=sys.stderr)
@@ -983,17 +1101,17 @@ def check_uinput(
 
 def wait_for_virtual_outputs(
     scroll_factory=ScrollEmitter,
-    pinch_factory=PinchEmitter,
+    gesture_factory=GestureEmitter,
     sleep=time.sleep,
-) -> Tuple[ScrollEmitter, PinchEmitter]:
+) -> Tuple[ScrollEmitter, GestureEmitter]:
     """Wait for boot-time uinput ACLs without crashing the user service."""
     retry_delay = RECONNECT_DELAY_INITIAL
     while True:
         scroll_emitter = None
         try:
             scroll_emitter = scroll_factory()
-            pinch_emitter = pinch_factory()
-            return scroll_emitter, pinch_emitter
+            gesture_emitter = gesture_factory()
+            return scroll_emitter, gesture_emitter
         except RuntimeError as error:
             if scroll_emitter is not None:
                 scroll_emitter.close()
@@ -1037,7 +1155,7 @@ def main() -> int:
     if UInput is None or ecodes is None:
         print("python3-evdev is required for virtual input output", file=sys.stderr)
         return 1
-    scroll_emitter, pinch_emitter = wait_for_virtual_outputs()
+    scroll_emitter, gesture_emitter = wait_for_virtual_outputs()
 
     try:
         while True:
@@ -1072,10 +1190,11 @@ def main() -> int:
             state.last_scroll_time = 0
             scroll_filter.reset(clear_acceleration=True)
             gesture_arbiter.reset()
-            pinch_emitter.end()
+            gesture_emitter.reset()
 
             print(f"Connected: {hidraw}")
             print("One finger scrolls; two fingers pinch or navigate back/forward")
+            print("Three fingers use GNOME workspace and overview gestures")
             print("Press Ctrl+C to stop\n")
 
             try:
@@ -1085,7 +1204,7 @@ def main() -> int:
                     scroll_filter,
                     scroll_emitter,
                     gesture_arbiter,
-                    pinch_emitter,
+                    gesture_emitter,
                 )
                 if not should_reconnect:
                     break
@@ -1097,14 +1216,14 @@ def main() -> int:
                     os.close(fd)
                 except OSError:
                     pass
-                pinch_emitter.end()
+                gesture_emitter.reset()
                 gesture_arbiter.reset()
 
             print(f"Reconnecting in {reconnect_delay:.0f}s...")
             time.sleep(reconnect_delay)
             reconnect_delay = min(reconnect_delay * RECONNECT_DELAY_MULTIPLIER, RECONNECT_DELAY_MAX)
     finally:
-        pinch_emitter.close()
+        gesture_emitter.close()
         scroll_emitter.close()
 
     return 0

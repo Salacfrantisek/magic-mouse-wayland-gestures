@@ -208,7 +208,7 @@ def test_v14_preflight_does_not_require_event_node_read_access():
 
     assert gestures.check_uinput(
         emitter_factory=Mock(return_value=scroll_emitter),
-        pinch_emitter_factory=Mock(return_value=pinch_emitter),
+        gesture_emitter_factory=Mock(return_value=pinch_emitter),
     )
     scroll_emitter.device.capabilities.assert_not_called()
     pinch_emitter.device.capabilities.assert_not_called()

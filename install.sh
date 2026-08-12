@@ -110,7 +110,7 @@ sudo udevadm trigger --action=change --subsystem-match=misc --sysname-match=uinp
 sudo udevadm trigger --action=change --subsystem-match=hidraw || true
 sudo udevadm settle
 
-echo "Checking isolated scroll and pinch devices..."
+echo "Checking isolated scroll and gesture devices..."
 python3 "$SCRIPT_DIR/magic_mouse_gestures.py" --check-uinput
 
 # Install runtime and user units only after unprivileged uinput succeeds.

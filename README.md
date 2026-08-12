@@ -1,8 +1,8 @@
 # Magic Mouse Wayland Gestures
 
 Linux/Wayland integration for Apple Magic Mouse 2 that adds one-finger
-scrolling, two-finger Back/Forward, kernel-native middle click, and smooth
-touchpad-style pinch zoom.
+scrolling, two-finger Back/Forward, kernel-native middle click, smooth
+touchpad-style pinch zoom, and GNOME three-finger navigation.
 
 > [!IMPORTANT]
 > This is an experimental desktop integration, not a kernel driver. The first
@@ -16,6 +16,8 @@ touchpad-style pinch zoom.
 | One-finger vertical or horizontal movement | Sticky-axis high-resolution scroll |
 | Two-finger horizontal swipe | Back / Forward (`Alt+Left` / `Alt+Right`) |
 | Two-finger spread or pinch | Native libinput/Wayland pinch gesture |
+| Three-finger swipe left or right | Switch GNOME workspace |
+| Three-finger swipe up | Open GNOME overview |
 | Physical click with one finger in the center zone | Kernel-native middle click |
 | Pointer movement and left/right click | Unchanged kernel behavior |
 
@@ -49,19 +51,25 @@ Magic Mouse 2
 ├── kernel hid_magicmouse → pointer + physical buttons + middle click
 └── read-only hidraw touch reports
     ├── one finger → scroll-only uinput device
-    ├── two-finger pinch → type-B multitouch uinput device → libinput/Wayland
+    ├── two-finger pinch → gesture-only multitouch uinput → libinput/Wayland
+    ├── three-finger swipe → same gesture-only uinput → GNOME
     └── two-finger swipe → dedicated keyboard-only ydotoold → Alt+Left/Right
 ```
 
-The scroll device has no pointer axes or buttons. The pinch device has no
+The scroll device has no pointer axes or buttons. The gesture device has no
 relative axes or mouse buttons. A project-specific `ydotoold` runs with
 `--mouse-off` and its own socket, so it cannot create a second virtual pointer
 or modify another application's ydotool service.
 
-The pinch adapter emits two synthetic contacts around a fixed center. That is
-deliberate: applications receive the normal Wayland pinch protocol while the
-real mouse continues to provide the pointer. It is a compatibility technique,
-not a claim that libinput natively recognizes Magic Mouse touch reports.
+The gesture adapter emits synthetic touchpad contacts. Two contacts change
+distance for pinch. Three contacts keep their distance and move together for a
+swipe. Applications and GNOME receive normal libinput gestures while the real
+mouse continues to provide the pointer.
+
+Apple Magic Trackpads normally appear as real touchpads in Linux and already
+provide libinput gestures. This project is aimed at Magic Mouse 2. Do not add a
+Trackpad or another Magic Mouse product ID without physical testing in a
+separate branch.
 
 ## Requirements
 
@@ -134,7 +142,7 @@ python3 /opt/magic-mouse-wayland-gestures/magic_mouse_gestures.py --check-middle
 libinput list-devices
 ```
 
-The libinput listing should show `Magic Mouse Pinch Touchpad` with
+The libinput listing should show `Magic Mouse Gesture Touchpad` with
 `Capabilities: pointer gesture`.
 
 ## Configuration

@@ -19,7 +19,7 @@
 - [ ] Stop and disable the old local `magic-mouse-gestures.service` deployment.
 - [ ] Install this repository through `./install.sh` as a normal desktop user.
 - [ ] Reboot and verify service startup, one-finger scroll, Back/Forward, middle
-  click, and pinch in at least a browser and one non-browser application.
+  click, pinch, workspace left/right, and overview up.
 - [ ] Run `./uninstall.sh`, reboot, and verify native pointer/buttons/scroll.
 - [ ] Reinstall to verify idempotence and repeat the component checks.
 - [ ] Create `Salacfrantisek/magic-mouse-wayland-gestures` as a public repository,
