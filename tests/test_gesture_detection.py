@@ -176,3 +176,6 @@ def test_v32_services_apply_hardening_without_private_devices():
     ):
         assert setting in services
     assert "PrivateDevices=true" not in services
+    # Ubuntu's unprivileged user manager cannot apply this setting and exits
+    # with 218/CAPABILITIES before either process starts.
+    assert "ProtectKernelModules=true" not in services
