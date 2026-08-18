@@ -132,6 +132,19 @@ def test_v27_v28_never_targets_generic_mouse_or_world_writable_hidraw():
     assert 'TAG+="uaccess"' in rules
 
 
+def test_v34_late_project_rule_applies_uaccess_after_adding_the_tag():
+    repo_root = Path(__file__).resolve().parents[1]
+    rules = (
+        repo_root / "udev" / "99-magic-mouse-wayland-gestures.rules"
+    ).read_text(encoding="utf-8")
+    magic_mouse_rule = next(
+        line for line in rules.splitlines() if 'KERNELS=="0005:004C:0269.*"' in line
+    )
+
+    assert 'TAG+="uaccess"' in magic_mouse_rule
+    assert 'RUN{builtin}+="uaccess"' in magic_mouse_rule
+
+
 def test_v29_uninstall_is_nonrecursive_and_removes_owned_ydotool_service():
     repo_root = Path(__file__).resolve().parents[1]
     uninstall_script = (repo_root / "uninstall.sh").read_text(encoding="utf-8")
