@@ -123,7 +123,7 @@ def test_v27_v28_never_targets_generic_mouse_or_world_writable_hidraw():
     repo_root = Path(__file__).resolve().parents[1]
     install_script = (repo_root / "install.sh").read_text(encoding="utf-8")
     rules = (
-        repo_root / "udev" / "99-magic-mouse-wayland-gestures.rules"
+        repo_root / "udev" / "70-magic-mouse-wayland-gestures.rules"
     ).read_text(encoding="utf-8")
 
     assert "Magic Mouse" in install_script
@@ -132,17 +132,37 @@ def test_v27_v28_never_targets_generic_mouse_or_world_writable_hidraw():
     assert 'TAG+="uaccess"' in rules
 
 
-def test_v34_late_project_rule_applies_uaccess_after_adding_the_tag():
+def test_v39_uaccess_rule_precedes_systemd_seat_acl_processing():
     repo_root = Path(__file__).resolve().parents[1]
-    rules = (
-        repo_root / "udev" / "99-magic-mouse-wayland-gestures.rules"
-    ).read_text(encoding="utf-8")
+    rules_path = repo_root / "udev" / "70-magic-mouse-wayland-gestures.rules"
+    rules = rules_path.read_text(encoding="utf-8")
     magic_mouse_rule = next(
         line for line in rules.splitlines() if 'KERNELS=="0005:004C:0269.*"' in line
     )
+    install_script = (repo_root / "install.sh").read_text(encoding="utf-8")
+    uninstall_script = (repo_root / "uninstall.sh").read_text(encoding="utf-8")
 
+    assert int(rules_path.name.split("-", 1)[0]) < 73
     assert 'TAG+="uaccess"' in magic_mouse_rule
-    assert 'RUN{builtin}+="uaccess"' in magic_mouse_rule
+    assert 'RUN{builtin}+="uaccess"' not in magic_mouse_rule
+    assert 'UDEV_FILE="/etc/udev/rules.d/70-$PROJECT.rules"' in install_script
+    assert 'LEGACY_UDEV_FILE="/etc/udev/rules.d/99-$PROJECT.rules"' in install_script
+    assert 'sudo rm -f "$LEGACY_UDEV_FILE"' in install_script
+    assert '"$LEGACY_UDEV_FILE"' in uninstall_script
+
+
+def test_v40_service_starts_only_with_the_graphical_session():
+    repo_root = Path(__file__).resolve().parents[1]
+    service = (
+        repo_root / "systemd" / "magic-mouse-wayland-gestures.service"
+    ).read_text(encoding="utf-8")
+    install_script = (repo_root / "install.sh").read_text(encoding="utf-8")
+
+    assert "PartOf=graphical-session.target" in service
+    assert "After=graphical-session-pre.target" in service
+    assert "WantedBy=graphical-session.target" in service
+    assert "WantedBy=default.target" not in service
+    assert 'systemctl --user reenable "$SERVICE_NAME"' in install_script
 
 
 def test_v29_uninstall_is_nonrecursive_and_removes_owned_ydotool_service():

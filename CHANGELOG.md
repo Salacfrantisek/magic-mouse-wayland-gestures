@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Order the Magic Mouse udev rule before systemd seat ACL processing.
+- Start the gesture pipeline only as part of the local graphical session.
+
 ## 0.1.0 - 2026-08-12
 
 - Preserve kernel-native pointer movement and physical buttons.

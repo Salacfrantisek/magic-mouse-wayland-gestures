@@ -7,7 +7,8 @@ INSTALL_DIR="/opt/$PROJECT"
 USER_SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="$PROJECT.service"
 YDOTOOL_SERVICE_NAME="$PROJECT-ydotool.service"
-UDEV_FILE="/etc/udev/rules.d/99-$PROJECT.rules"
+UDEV_FILE="/etc/udev/rules.d/70-$PROJECT.rules"
+LEGACY_UDEV_FILE="/etc/udev/rules.d/99-$PROJECT.rules"
 MODPROBE_FILE="/etc/modprobe.d/99-$PROJECT.conf"
 MODULES_LOAD_FILE="/etc/modules-load.d/$PROJECT.conf"
 
@@ -39,7 +40,7 @@ systemctl --user daemon-reload
 
 sudo rm -f "$INSTALL_DIR/magic_mouse_gestures.py"
 sudo rmdir "$INSTALL_DIR" 2>/dev/null || true
-sudo rm -f "$UDEV_FILE" "$MODPROBE_FILE" "$MODULES_LOAD_FILE"
+sudo rm -f "$UDEV_FILE" "$LEGACY_UDEV_FILE" "$MODPROBE_FILE" "$MODULES_LOAD_FILE"
 sudo udevadm control --reload-rules
 sudo udevadm trigger --action=change --subsystem-match=misc --sysname-match=uinput || true
 sudo udevadm trigger --action=change --subsystem-match=hidraw || true

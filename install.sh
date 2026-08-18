@@ -8,7 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 USER_SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="$PROJECT.service"
 YDOTOOL_SERVICE_NAME="$PROJECT-ydotool.service"
-UDEV_FILE="/etc/udev/rules.d/99-$PROJECT.rules"
+UDEV_FILE="/etc/udev/rules.d/70-$PROJECT.rules"
+LEGACY_UDEV_FILE="/etc/udev/rules.d/99-$PROJECT.rules"
 MODPROBE_FILE="/etc/modprobe.d/99-$PROJECT.conf"
 MODULES_LOAD_FILE="/etc/modules-load.d/$PROJECT.conf"
 
@@ -102,7 +103,8 @@ fi
 sudo -v
 
 # Install project-owned access rules first. No kernel behavior changes yet.
-sudo install -m 0644 "$SCRIPT_DIR/udev/99-$PROJECT.rules" "$UDEV_FILE"
+sudo install -m 0644 "$SCRIPT_DIR/udev/70-$PROJECT.rules" "$UDEV_FILE"
+sudo rm -f "$LEGACY_UDEV_FILE"
 sudo install -m 0644 "$SCRIPT_DIR/modules-load/$PROJECT.conf" "$MODULES_LOAD_FILE"
 sudo modprobe uinput
 sudo udevadm control --reload-rules
@@ -179,7 +181,7 @@ if [[ -d /sys/module/hid_magicmouse/parameters ]]; then
     write_parameter emulate_scroll_wheel 0
 fi
 
-systemctl --user enable "$SERVICE_NAME"
+systemctl --user reenable "$SERVICE_NAME"
 systemctl --user restart "$SERVICE_NAME"
 sleep 2
 systemctl --user is-active --quiet "$SERVICE_NAME"

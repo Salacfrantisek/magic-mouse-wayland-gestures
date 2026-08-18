@@ -1,7 +1,8 @@
 [Unit]
 Description=Magic Mouse 2 Wayland Gestures
 Documentation=https://github.com/Salacfrantisek/magic-mouse-wayland-gestures
-After=graphical-session.target magic-mouse-wayland-gestures-ydotool.service
+PartOf=graphical-session.target
+After=graphical-session-pre.target magic-mouse-wayland-gestures-ydotool.service
 Wants=magic-mouse-wayland-gestures-ydotool.service
 
 [Service]
@@ -22,4 +23,4 @@ MemoryDenyWriteExecute=true
 RestrictRealtime=true
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target

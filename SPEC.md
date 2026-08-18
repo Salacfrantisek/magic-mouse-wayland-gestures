@@ -25,7 +25,7 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 - `python3-evdev`: uinput API; packaged dependency.
 - `SCROLL_SPEED=22`, `SCROLL_LOCK_RATIO=1.5`, `SCROLL_LOCK_TIMEOUT=0.25`, `SCROLL_ACCEL_MAX=2.3`, `PINCH_THRESHOLD_MM=2.0`, `PINCH_DOMINANCE=1.3`: optional environment overrides.
 - `modprobe/99-magic-mouse-wayland-gestures.conf`: project-owned config with `scroll_acceleration=0`, `scroll_speed=22`, `emulate_scroll_wheel=0`, `emulate_3button=1`; userspace owns scroll, kernel owns clicks.
-- `udev/99-magic-mouse-wayland-gestures.rules`: exact Magic Mouse 2 hidraw access plus active-session uinput access; never world-writable input devices.
+- `udev/70-magic-mouse-wayland-gestures.rules`: exact Magic Mouse 2 hidraw access plus active-session uinput access, ordered before systemd seat ACL processing; never world-writable input devices.
 - `systemd/magic-mouse-wayland-gestures.service`: restart/reconnect lifecycle with user-service hardening.
 - `systemd/magic-mouse-wayland-gestures-ydotool.service`: project-specific keyboard-only ydotoold and private runtime socket.
 - `tests/`: pure state-machine and integration-boundary tests; no physical mouse required.
@@ -72,6 +72,8 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 - V36: The gesture touchpad advertises three MT slots and `BTN_TOOL_TRIPLETAP`, but no relative axes or mouse buttons. Existing two-finger pinch lifecycle and isolation remain unchanged.
 - V37: Automated tests cover three-finger capability isolation, equal contact translation, stable-ID reset, and sequence locking. Live merge gate checks GNOME workspace left/right and overview up on the tested Magic Mouse 2.
 - V38: Three-finger virtual Y translation is inverted against Magic Mouse raw Y so physical up matches the tested GNOME touchpad up gesture. This conversion changes neither V16 one-finger scroll signs nor V10 two-finger Back/Forward mapping; horizontal three-finger direction is unchanged.
+- V39: The project udev rule sorts before systemd `73-seat-late.rules`, so the standard `uaccess` builtin sees the exact Magic Mouse tag on first device creation. Upgrade removes the obsolete late `99-` rule.
+- V40: The main service is enabled under and stopped with `graphical-session.target`; a lingering user manager cannot start the hidraw/uinput/ydotool pipeline before a local graphical login.
 
 §T
 
@@ -79,9 +81,10 @@ id|status|goal|cites
 T1|x|Implement, test, document, preflight, and deploy minimal scroll-only sticky axis lock|V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15,I.magic_mouse_gestures.py,I./dev/uinput,I.python3-evdev,I.modprobe/99-magic-mouse-wayland-gestures.conf,I.systemd/magic-mouse-wayland-gestures.service,I.tests
 T2|x|Enable, test, document, and deploy kernel-native center-zone middle click|V1,V11,V13,V17,V18,V24,I.modprobe/99-magic-mouse-wayland-gestures.conf,I.tests
 T3|x|Implement, test, document, preflight, deploy, and package native Wayland pinch without swipe/scroll regressions|V1,V2,V3,V9,V10,V11,V12,V13,V14,V18,V19,V20,V21,V22,V23,V24,I.magic_mouse_gestures.py,I./dev/uinput,I.python3-evdev,I.systemd/magic-mouse-wayland-gestures.service,I.tests
-T4|x|Prepare clean public derivative with least-privilege transactional install, accurate provenance, safe uninstall, CI, and publication metadata|V1,V11,V13,V14,V17,V18,V19,V23,V24,V25,V26,V27,V28,V29,V30,V31,V32,I.magic_mouse_gestures.py,I.modprobe/99-magic-mouse-wayland-gestures.conf,I.udev/99-magic-mouse-wayland-gestures.rules,I.systemd/magic-mouse-wayland-gestures.service,I.tests,I.THIRD_PARTY_NOTICES.md,I.LICENSE,I.README.md,I.github/workflows/ci.yml
+T4|x|Prepare clean public derivative with least-privilege transactional install, accurate provenance, safe uninstall, CI, and publication metadata|V1,V11,V13,V14,V17,V18,V19,V23,V24,V25,V26,V27,V28,V29,V30,V31,V32,I.magic_mouse_gestures.py,I.modprobe/99-magic-mouse-wayland-gestures.conf,I.udev/70-magic-mouse-wayland-gestures.rules,I.systemd/magic-mouse-wayland-gestures.service,I.tests,I.THIRD_PARTY_NOTICES.md,I.LICENSE,I.README.md,I.github/workflows/ci.yml
 T5|x|Handle delayed boot-time uinput ACL without traceback or service restart|V11,V23,V24,V29,V31,V32,V33,I.magic_mouse_gestures.py,I.systemd/magic-mouse-wayland-gestures.service,I.systemd/magic-mouse-wayland-gestures-ydotool.service,I.tests
 T6|x|Add native three-finger GNOME workspace and overview gestures on Magic Mouse 2|V1,V3,V9,V10,V18,V22,V23,V24,V31,V34,V35,V36,V37,V38,I.magic_mouse_gestures.py,I./dev/uinput,I.python3-evdev,I.tests,I.README.md
+T7|x|Make Back/Forward boot lifecycle independent of linger startup and late udev tagging|V28,V29,V32,V33,V39,V40,I.udev/70-magic-mouse-wayland-gestures.rules,I.systemd/magic-mouse-wayland-gestures.service,I.install.sh,I.uninstall.sh,I.tests
 
 §B
 
@@ -103,3 +106,5 @@ B14|2026-08-12|daemon preflight wrongly required socket removal though ydotoold 
 B15|2026-08-12|release secret scan matched forbidden strings inside negative test assertions|V30
 B16|2026-08-12|user unit started before logind granted uinput ACL and uncaught UInputError caused restart|V33
 B17|2026-08-12|three-finger virtual touchpad copied raw Magic Mouse Y directly, making GNOME vertical gestures physically inverted|V38
+B18|2026-08-18|late `99-` udev rule tagged hidraw only after systemd seat ACL processing|V39
+B19|2026-08-18|linger-enabled user manager started the gesture pipeline long before graphical login|V40
