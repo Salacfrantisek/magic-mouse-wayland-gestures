@@ -25,7 +25,7 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 - `python3-evdev`: uinput API; packaged dependency.
 - `SCROLL_SPEED=22`, `SCROLL_LOCK_RATIO=1.5`, `SCROLL_LOCK_TIMEOUT=0.25`, `SCROLL_ACCEL_MAX=2.3`, `PINCH_THRESHOLD_MM=2.0`, `PINCH_DOMINANCE=1.3`: optional environment overrides.
 - `modprobe/99-magic-mouse-wayland-gestures.conf`: project-owned config with `scroll_acceleration=0`, `scroll_speed=22`, `emulate_scroll_wheel=0`, `emulate_3button=1`; userspace owns scroll, kernel owns clicks.
-- `udev/70-magic-mouse-wayland-gestures.rules`: exact Magic Mouse 2 hidraw access plus active-session uinput access, ordered before systemd seat ACL processing; never world-writable input devices.
+- `udev/70-magic-mouse-wayland-gestures.rules`: exact `004C:0269` and candidate `004C:0323` hidraw access plus active-session uinput access, ordered before systemd seat ACL processing; never world-writable input devices.
 - `systemd/magic-mouse-wayland-gestures.service`: restart/reconnect lifecycle with user-service hardening.
 - `systemd/magic-mouse-wayland-gestures-ydotool.service`: project-specific keyboard-only ydotoold and private runtime socket.
 - `tests/`: pure state-machine and integration-boundary tests; no physical mouse required.
@@ -74,6 +74,7 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 - V38: Three-finger virtual Y translation is inverted against Magic Mouse raw Y so physical up matches the tested GNOME touchpad up gesture. This conversion changes neither V16 one-finger scroll signs nor V10 two-finger Back/Forward mapping; horizontal three-finger direction is unchanged.
 - V39: The project udev rule sorts before systemd `73-seat-late.rules`, so the standard `uaccess` builtin sees the exact Magic Mouse tag on first device creation. Upgrade removes the obsolete late `99-` rule.
 - V40: The main service is enabled under and stopped with `graphical-session.target`; a lingering user manager cannot start the hidraw/uinput/ydotool pipeline before a local graphical login.
+- V41: USB-C product `0323` is matched only as exact Bluetooth HID `0005:004C:0323`. Its kernel report path matches `0269`, but support remains experimental until a reporter physically verifies pointer/buttons, middle click, raw-touch scrolling, Back/Forward, pinch, and desktop-applicable three-finger behavior.
 
 §T
 
@@ -108,3 +109,4 @@ B16|2026-08-12|user unit started before logind granted uinput ACL and uncaught U
 B17|2026-08-12|three-finger virtual touchpad copied raw Magic Mouse Y directly, making GNOME vertical gestures physically inverted|V38
 B18|2026-08-18|late `99-` udev rule tagged hidraw only after systemd seat ACL processing|V39
 B19|2026-08-18|linger-enabled user manager started the gesture pipeline long before graphical login|V40
+B20|2026-08-28|runtime, middle-click preflight and udev access recognized only product `0269`, rejecting the upstream-compatible USB-C product `0323` before physical testing|V41

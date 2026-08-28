@@ -1,9 +1,8 @@
 # Contributing
 
-Bug reports should include the Magic Mouse product ID, connection type, Linux
-distribution, kernel, desktop session, and libinput version. Do not include
-Bluetooth addresses, usernames, full raw journals, or other machine-specific
-identifiers.
+Bug reports should include the sanitized `HID_ID`, Linux distribution, kernel,
+desktop session, and libinput version. Do not include Bluetooth addresses,
+usernames, full raw journals, or other machine-specific identifiers.
 
 Before submitting a change, run:
 

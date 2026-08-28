@@ -1,7 +1,8 @@
-# Magic Mouse 2 (Bluetooth 004C:0269): raw touch reports for active session.
+# Supported Bluetooth Magic Mouse revisions: raw touch reports for active session.
 # Keep this file lexically before systemd's 73-seat-late.rules so its uaccess
 # builtin sees the tag and grants the active desktop user an ACL.
 SUBSYSTEM=="hidraw", KERNELS=="0005:004C:0269.*", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", KERNELS=="0005:004C:0323.*", MODE="0660", TAG+="uaccess"
 
 # The service creates deliberately limited scroll and pinch devices via uinput.
 # uinput can synthesize input, so grant it only to the active local session.

@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 import magic_mouse_gestures as gestures
 
 
@@ -74,16 +76,51 @@ def test_v17_sysfs_bitmap_detects_middle_click_capability():
     assert not gestures.capability_bitmap_has_code("30001 0 0 0 0", gestures.BTN_MIDDLE_CODE)
 
 
-def test_v17_physical_middle_click_check_ignores_virtual_devices(tmp_path: Path):
+@pytest.mark.parametrize("product", sorted(gestures.PRODUCT_IDS))
+def test_v17_physical_middle_click_check_accepts_supported_products(
+    tmp_path: Path,
+    product: str,
+):
     physical = tmp_path / "event30" / "device"
     physical.mkdir(parents=True)
     (physical / "id").mkdir()
     (physical / "id" / "vendor").write_text("004c\n", encoding="ascii")
-    (physical / "id" / "product").write_text("0269\n", encoding="ascii")
+    (physical / "id" / "product").write_text(f"{product}\n", encoding="ascii")
     (physical / "capabilities").mkdir()
     (physical / "capabilities" / "key").write_text("70001 0 0 0 0\n", encoding="ascii")
 
     assert gestures.physical_middle_click_available(str(tmp_path))
+
+
+def test_v41_hidraw_match_uses_exact_supported_bluetooth_ids():
+    assert gestures.supported_hid_uevent(
+        "HID_ID=0005:0000004C:00000269\nHID_NAME=Magic Mouse\n"
+    )
+    assert gestures.supported_hid_uevent(
+        "HID_ID=0005:0000004C:00000323\nHID_NAME=Magic Mouse\n"
+    )
+    assert not gestures.supported_hid_uevent(
+        "HID_ID=0003:0000004C:00000323\nHID_NAME=Magic Mouse\n"
+    )
+    assert not gestures.supported_hid_uevent(
+        "HID_ID=0005:0000004C:00000324\nHID_NAME=Magic Mouse 0323\n"
+    )
+    assert not gestures.supported_hid_uevent("HID_NAME=Magic Mouse 004c 0323\n")
+
+
+def test_v41_middle_click_check_rejects_unknown_product(tmp_path: Path):
+    physical = tmp_path / "event30" / "device"
+    physical.mkdir(parents=True)
+    (physical / "id").mkdir()
+    (physical / "id" / "vendor").write_text("004c\n", encoding="ascii")
+    (physical / "id" / "product").write_text("0324\n", encoding="ascii")
+    (physical / "capabilities").mkdir()
+    (physical / "capabilities" / "key").write_text(
+        "70001 0 0 0 0\n",
+        encoding="ascii",
+    )
+
+    assert not gestures.physical_middle_click_available(str(tmp_path))
 
 
 def test_v17_install_enables_middle_click_before_reprobe():
@@ -136,15 +173,21 @@ def test_v39_uaccess_rule_precedes_systemd_seat_acl_processing():
     repo_root = Path(__file__).resolve().parents[1]
     rules_path = repo_root / "udev" / "70-magic-mouse-wayland-gestures.rules"
     rules = rules_path.read_text(encoding="utf-8")
-    magic_mouse_rule = next(
-        line for line in rules.splitlines() if 'KERNELS=="0005:004C:0269.*"' in line
-    )
+    magic_mouse_rules = [
+        line
+        for line in rules.splitlines()
+        if any(
+            f'KERNELS=="0005:004C:{product.upper()}.*"' in line
+            for product in gestures.PRODUCT_IDS
+        )
+    ]
     install_script = (repo_root / "install.sh").read_text(encoding="utf-8")
     uninstall_script = (repo_root / "uninstall.sh").read_text(encoding="utf-8")
 
     assert int(rules_path.name.split("-", 1)[0]) < 73
-    assert 'TAG+="uaccess"' in magic_mouse_rule
-    assert 'RUN{builtin}+="uaccess"' not in magic_mouse_rule
+    assert len(magic_mouse_rules) == len(gestures.PRODUCT_IDS)
+    assert all('TAG+="uaccess"' in rule for rule in magic_mouse_rules)
+    assert all('RUN{builtin}+="uaccess"' not in rule for rule in magic_mouse_rules)
     assert 'UDEV_FILE="/etc/udev/rules.d/70-$PROJECT.rules"' in install_script
     assert 'LEGACY_UDEV_FILE="/etc/udev/rules.d/99-$PROJECT.rules"' in install_script
     assert 'sudo rm -f "$LEGACY_UDEV_FILE"' in install_script

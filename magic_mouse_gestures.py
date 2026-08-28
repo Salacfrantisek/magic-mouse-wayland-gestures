@@ -31,9 +31,10 @@ except ImportError:  # Reported clearly by ScrollEmitter when used.
 
 __version__ = "0.1.0"
 
-# Magic Mouse 2 identifiers
+# Supported Bluetooth Magic Mouse identifiers
+BUS_ID = "0005"
 VENDOR_ID = "004c"
-PRODUCT_ID = "0269"
+PRODUCT_IDS = frozenset(("0269", "0323"))
 BTN_MIDDLE_CODE = 274
 KEY_LEFT_ALT = 56
 KEY_LEFT = 105
@@ -149,7 +150,7 @@ def physical_middle_click_available(input_root: str = "/sys/class/input") -> boo
                 vendor = vendor_file.read().strip().lower()
             with open(f"{device_path}/id/product", "r", encoding="ascii") as product_file:
                 product = product_file.read().strip().lower()
-            if vendor != VENDOR_ID or product != PRODUCT_ID:
+            if vendor != VENDOR_ID or product not in PRODUCT_IDS:
                 continue
             with open(f"{device_path}/capabilities/key", "r", encoding="ascii") as key_file:
                 return capability_bitmap_has_code(key_file.read(), BTN_MIDDLE_CODE)
@@ -760,6 +761,25 @@ class GestureEmitter:
         self.close()
 
 
+def supported_hid_uevent(content: str) -> bool:
+    """Return whether a uevent contains one exact supported Bluetooth HID ID."""
+    for line in content.splitlines():
+        key, separator, value = line.partition("=")
+        if key != "HID_ID" or not separator:
+            continue
+        fields = value.split(":")
+        if len(fields) != 3:
+            return False
+        try:
+            bus, vendor, product = (
+                f"{int(field, 16):04x}" for field in fields
+            )
+        except ValueError:
+            return False
+        return bus == BUS_ID and vendor == VENDOR_ID and product in PRODUCT_IDS
+    return False
+
+
 def find_hidraw_device() -> Optional[str]:
     """
     Locate the hidraw device for Magic Mouse 2.
@@ -772,9 +792,8 @@ def find_hidraw_device() -> Optional[str]:
             sysfs_path = f'/sys/class/hidraw/{os.path.basename(hidraw)}/device/uevent'
             if os.path.exists(sysfs_path):
                 with open(sysfs_path, 'r') as f:
-                    content = f.read().lower()
-                    # Use constants for device matching
-                    if VENDOR_ID in content and PRODUCT_ID in content:
+                    content = f.read()
+                    if supported_hid_uevent(content):
                         return hidraw
         except (IOError, PermissionError):
             continue

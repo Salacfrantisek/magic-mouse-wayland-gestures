@@ -7,7 +7,9 @@ touchpad-style pinch zoom, and GNOME three-finger navigation.
 > [!IMPORTANT]
 > This is an experimental desktop integration, not a kernel driver. The first
 > public release supports only the Bluetooth Magic Mouse 2 identified as
-> `004C:0269`. Read the tested-platform and security notes before installing.
+> `004C:0269`. The `support/usb-c-0323` branch adds an unverified candidate for
+> the USB-C revision `004C:0323`; it is not supported until physical acceptance
+> is complete. Read the tested-platform and security notes before installing.
 
 ## Features
 
@@ -62,7 +64,7 @@ installed. The project changes only these host-side pieces:
 |---|---|
 | Kernel module settings | `emulate_3button=1`, `emulate_scroll_wheel=0`, `scroll_acceleration=0`, `scroll_speed=22` |
 | Physical device | Still handled by in-tree `hid_magicmouse` for pointer movement and all physical buttons |
-| Touch reports | Read from the exact `004C:0269` hidraw device without grabbing it |
+| Touch reports | Read from the exact allowlist `004C:0269` and experimental `004C:0323` without grabbing the device |
 | One finger | Emitted through a scroll-only uinput device |
 | Two-finger pinch | Emitted as two contacts on a gesture-only virtual touchpad |
 | Three-finger swipe | Emitted as three translating contacts; GNOME decides workspace or Overview behavior |
