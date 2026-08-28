@@ -31,10 +31,12 @@ except ImportError:  # Reported clearly by ScrollEmitter when used.
 
 __version__ = "0.1.0"
 
-# Supported Bluetooth Magic Mouse identifiers
-BUS_ID = "0005"
-VENDOR_ID = "004c"
-PRODUCT_IDS = frozenset(("0269", "0323"))
+# Supported Bluetooth Magic Mouse identifiers and user-facing model names.
+SUPPORTED_HID_MODELS = {
+    ("0005", "004c", "0269"): "Magic Mouse 2 (Lightning)",
+    ("0005", "004c", "0323"): "Magic Mouse (USB-C)",
+}
+SUPPORTED_HID_IDS = frozenset(SUPPORTED_HID_MODELS)
 BTN_MIDDLE_CODE = 274
 KEY_LEFT_ALT = 56
 KEY_LEFT = 105
@@ -146,14 +148,17 @@ def physical_middle_click_available(input_root: str = "/sys/class/input") -> boo
     """Check that the reprobed physical Magic Mouse advertises BTN_MIDDLE."""
     for device_path in glob.glob(f"{input_root}/event*/device"):
         try:
+            with open(f"{device_path}/id/bustype", "r", encoding="ascii") as bus_file:
+                bus = bus_file.read().strip().lower()
             with open(f"{device_path}/id/vendor", "r", encoding="ascii") as vendor_file:
                 vendor = vendor_file.read().strip().lower()
             with open(f"{device_path}/id/product", "r", encoding="ascii") as product_file:
                 product = product_file.read().strip().lower()
-            if vendor != VENDOR_ID or product not in PRODUCT_IDS:
+            if (bus, vendor, product) not in SUPPORTED_HID_IDS:
                 continue
             with open(f"{device_path}/capabilities/key", "r", encoding="ascii") as key_file:
-                return capability_bitmap_has_code(key_file.read(), BTN_MIDDLE_CODE)
+                if capability_bitmap_has_code(key_file.read(), BTN_MIDDLE_CODE):
+                    return True
         except (OSError, ValueError):
             continue
     return False
@@ -761,23 +766,43 @@ class GestureEmitter:
         self.close()
 
 
-def supported_hid_uevent(content: str) -> bool:
-    """Return whether a uevent contains one exact supported Bluetooth HID ID."""
+def supported_hid_id(content: str) -> Optional[Tuple[str, str, str]]:
+    """Return the normalized supported HID identity from one uevent."""
     for line in content.splitlines():
         key, separator, value = line.partition("=")
         if key != "HID_ID" or not separator:
             continue
         fields = value.split(":")
         if len(fields) != 3:
-            return False
+            return None
         try:
             bus, vendor, product = (
                 f"{int(field, 16):04x}" for field in fields
             )
         except ValueError:
-            return False
-        return bus == BUS_ID and vendor == VENDOR_ID and product in PRODUCT_IDS
-    return False
+            return None
+        hid_id = (bus, vendor, product)
+        return hid_id if hid_id in SUPPORTED_HID_IDS else None
+    return None
+
+
+def supported_hid_uevent(content: str) -> bool:
+    """Return whether a uevent contains one exact supported Bluetooth HID ID."""
+    return supported_hid_id(content) is not None
+
+
+def describe_hidraw_device(hidraw: str) -> Optional[str]:
+    """Describe one supported hidraw device without opening its event stream."""
+    sysfs_path = f'/sys/class/hidraw/{os.path.basename(hidraw)}/device/uevent'
+    try:
+        with open(sysfs_path, 'r') as uevent_file:
+            hid_id = supported_hid_id(uevent_file.read())
+    except OSError:
+        return None
+    if hid_id is None:
+        return None
+    identity = ":".join(part.upper() for part in hid_id)
+    return f"{SUPPORTED_HID_MODELS[hid_id]} ({identity}) at {hidraw}"
 
 
 def find_hidraw_device() -> Optional[str]:
@@ -1155,6 +1180,14 @@ def main() -> int:
             print("middle-click check OK: physical device advertises BTN_MIDDLE")
             return 0
         print("middle-click check failed: BTN_MIDDLE is not advertised", file=sys.stderr)
+        return 1
+    if sys.argv[1:] == ['--detect-device']:
+        hidraw = find_hidraw_device()
+        description = describe_hidraw_device(hidraw) if hidraw else None
+        if description:
+            print(f"Detected: {description}")
+            return 0
+        print("No connected supported Magic Mouse detected", file=sys.stderr)
         return 1
     if sys.argv[1:]:
         print(f"Unknown arguments: {' '.join(sys.argv[1:])}", file=sys.stderr)

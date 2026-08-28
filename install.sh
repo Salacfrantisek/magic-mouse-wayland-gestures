@@ -100,6 +100,11 @@ if ! python3 -c 'import evdev' >/dev/null 2>&1; then
     exit 1
 fi
 
+echo "Detecting a supported Magic Mouse..."
+if ! python3 "$SCRIPT_DIR/magic_mouse_gestures.py" --detect-device; then
+    printf '%bNo supported mouse is currently connected; installing support for both known models.%b\n' "$YELLOW" "$NC"
+fi
+
 sudo -v
 
 # Install project-owned access rules first. No kernel behavior changes yet.

@@ -126,6 +126,10 @@ sudo apt install python3 python3-evdev ydotool bluez
 Do not run the installer itself with `sudo`; it requests privilege only for
 project-owned system files and kernel parameters.
 
+The installer recognizes either supported Bluetooth HID identity automatically;
+there is no model-selection prompt. If neither mouse is currently connected,
+it still installs support for both and activates when one appears.
+
 ```bash
 git clone https://github.com/Salacfrantisek/magic-mouse-wayland-gestures.git
 cd magic-mouse-wayland-gestures

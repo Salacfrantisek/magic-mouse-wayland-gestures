@@ -74,7 +74,7 @@ Publishable Magic Mouse 2 Wayland integration: kernel pointer/buttons/middle cli
 - V38: Three-finger virtual Y translation is inverted against Magic Mouse raw Y so physical up matches the tested GNOME touchpad up gesture. This conversion changes neither V16 one-finger scroll signs nor V10 two-finger Back/Forward mapping; horizontal three-finger direction is unchanged.
 - V39: The project udev rule sorts before systemd `73-seat-late.rules`, so the standard `uaccess` builtin sees the exact Magic Mouse tag on first device creation. Upgrade removes the obsolete late `99-` rule.
 - V40: The main service is enabled under and stopped with `graphical-session.target`; a lingering user manager cannot start the hidraw/uinput/ydotool pipeline before a local graphical login.
-- V41: USB-C product `0323` is matched only as exact Bluetooth HID `0005:004C:0323`. Its kernel report path matches `0269`, but support remains experimental until a reporter physically verifies pointer/buttons, middle click, raw-touch scrolling, Back/Forward, pinch, and desktop-applicable three-finger behavior.
+- V41: One explicit tuple allowlist contains Bluetooth HID `0005:004C:0269` and candidate `0005:004C:0323`; runtime discovery, physical middle-click verification and udev tests must agree with it. The installer reports a connected known model but can install support for both while neither is connected. USB-C support remains experimental until a reporter physically verifies pointer/buttons, middle click, raw-touch scrolling, Back/Forward, pinch, and desktop-applicable three-finger behavior.
 
 §T
 
